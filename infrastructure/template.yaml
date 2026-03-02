@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Clinic AI Microservices - SAM Template
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: nodejs20.x
+
+Resources:
+  # Example API Definition
+  ClinicApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: dev
+
+  # Auth Service Example
+  AuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../services/auth-service/
+      Handler: handler.login
+      Events:
+        LoginApi:
+          Type: Api
+          Properties:
+            Path: /auth/login
+            Method: post
+            RestApiId:
+              Ref: ClinicApi
+
+  # SQS Queues Example
+  TranscriptionQueue:
+    Type: AWS::SQS::Queue
+
+  # DynamoDB Table Example
+  PatientsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: Patients
+      AttributeDefinitions:
+        - AttributeName: patientId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: patientId
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+Outputs:
+  ApiEndpoint:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ClinicApi}.execute-api.${AWS::Region}.amazonaws.com/dev/"

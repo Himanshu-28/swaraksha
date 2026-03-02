@@ -4,23 +4,38 @@
 
 **Swaraksha** (स्वरक्षा) - meaning "voice protection" in Sanskrit - safeguards patient care through intelligent voice documentation.
 
+This project provides a robust, microservices-based backend system for Clinic AI. It is designed as a monorepo consisting of serverless AWS Lambda microservices, shared logic, and frontends.
+
 ## Overview
 
 An AI-powered system that transforms doctor-patient consultations into structured clinical documentation, generates prescriptions, and delivers patient-friendly summaries via WhatsApp—all in Hindi, English, or code-switched conversations.
 
-## Key Features
-
-- 🎤 **Real-time Transcription**: Converts Hindi/English consultations to text using Amazon Transcribe
-- 📋 **SOAP Note Generation**: Automatically creates structured clinical notes with Amazon Bedrock
-- 💊 **Smart Prescriptions**: Extracts medications and generates prescription drafts
-- 📱 **WhatsApp Integration**: Sends diagnosis summaries and medication instructions in patient's language
-- 🔒 **Privacy-First**: End-to-end encryption, consent management, and automatic data retention
-- 🌐 **Multilingual**: Native support for Hindi, English, and code-switching scenarios
-- ⚡ **Serverless**: Built on AWS Lambda, Aurora Serverless, and Step Functions for scalability
+## Key Microservices
+* **Auth Service**: User authentication and authorization.
+* **Patient Service**: Patient profile and details management.
+* **Appointment Service**: Scheduling and managing appointments.
+* **WhatsApp Service**: Integration with the WhatsApp API for notifications and interactions.
+* **Transcription Service**: AI transcription of medical audio/video using external models.
+* **SOAP Service**: Generating SOAP notes from transcriptions and consultations.
+* **Prescription Service**: Managing prescriptions given to patients.
+* **Notification Service**: Handling push/email/SMS notifications.
 
 ## Architecture
 
+```mermaid
+graph TD;
+    Client-->API_Gateway;
+    API_Gateway-->AuthService;
+    API_Gateway-->PatientService;
+    API_Gateway-->AppointmentService;
+    API_Gateway-->WhatsAppService;
+    API_Gateway-->TranscriptionService;
+    API_Gateway-->SOAPService;
+    API_Gateway-->PrescriptionService;
+    API_Gateway-->NotificationService;
 ```
+
+```text
 Consultation → Transcribe → Bedrock (SOAP) → Comprehend Medical → Translate → WhatsApp
                     ↓              ↓                  ↓               ↓
                   Aurora      Step Functions      S3 Storage      SNS/API
@@ -29,28 +44,31 @@ Consultation → Transcribe → Bedrock (SOAP) → Comprehend Medical → Transl
 ## Tech Stack
 
 - **Compute**: AWS Lambda (Node.js 18.x)
-- **Database**: Amazon Aurora Serverless v2 PostgreSQL
+- **Database**: Amazon Aurora Serverless v2 PostgreSQL, DynamoDB
 - **AI/ML**: Amazon Transcribe, Bedrock (Claude 3), Comprehend Medical, Translate
 - **Orchestration**: AWS Step Functions
 - **Messaging**: WhatsApp Business API via Amazon SNS
 - **Auth**: Amazon Cognito
-- **Infrastructure**: AWS CDK (TypeScript)
+- **Infrastructure**: AWS SAM, AWS CDK (TypeScript)
 
-## Quick Start
+## How to Run Locally
 
-```bash
-# Install dependencies
-npm install
+1. Navigate to the `infrastructure` folder.
+2. Ensure you have the [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) installed.
+3. Start the local API Gateway:
+   ```bash
+   sam local start-api
+   ```
+4. Each service's lambdas can be invoked locally via SAM.
 
-# Deploy infrastructure
-npm run cdk:deploy
+## Deployment Steps
 
-# Run tests
-npm test
-
-# Enable demo mode
-npm run demo
-```
+1. Make sure you are authenticated with AWS CLI.
+2. Use AWS SAM to build and deploy:
+   ```bash
+   sam build
+   sam deploy --guided
+   ```
 
 ## Demo Mode
 
@@ -81,4 +99,4 @@ MIT
 
 ## Hackathon Submission
 
-Built for [Hackathon Name] - demonstrating AI-powered healthcare automation for resource-constrained clinics in India.
+Built for **AI for Bharat Hackathon** - demonstrating AI-powered healthcare automation for resource-constrained clinics in India.
