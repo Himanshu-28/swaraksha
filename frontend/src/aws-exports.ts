@@ -8,6 +8,6 @@ const awsConfig = {
 };
 
 export const API_ENDPOINT = 'https://i6a1l4o09d.execute-api.ap-south-1.amazonaws.com/prod';
-export const SOAP_API_ENDPOINT = 'https://ll2nm2qqfc.execute-api.ap-south-1.amazonaws.com/prod/soap/generate';
+export const SOAP_API_ENDPOINT = `${API_ENDPOINT}/soap/generate`;
 
 export default awsConfig;

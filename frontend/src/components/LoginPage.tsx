@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Authenticator } from '@aws-amplify/ui-react';
 import { Stethoscope, Mic, FileText, Link2 } from 'lucide-react';
+import SignUpForm from './SignUpForm';
 
 const features = [
     { Icon: Mic, title: 'Real-time Transcription', desc: 'Multilingual voice capture in English, Hindi & more' },
@@ -7,29 +9,56 @@ const features = [
     { Icon: Link2, title: 'EMR / EHR Integration', desc: 'Sync directly to your existing records system' },
 ];
 
-const components = {
-    Header() {
-        return (
-            <div className="flex flex-col items-center px-4 pt-7 pb-2">
-                {/* Mobile-only branding above form */}
-                <div className="flex md:hidden items-center gap-2.5 mb-5">
-                    <div className="w-10 h-10 rounded-xl bg-[#196ee6] flex items-center justify-center shadow-md">
-                        <Stethoscope size={20} color="white" />
-                    </div>
-                    <div>
-                        <p className="text-xl font-bold text-slate-900 leading-tight">Swarksha</p>
-                        <p className="text-[11px] text-slate-400 leading-tight">AI Clinical Documentation</p>
-                    </div>
+type Mode = 'signin' | 'signup';
+
+function SignInHeader({ onSignUp: _onSignUp }: { onSignUp: () => void }) {
+    return (
+        <div className="flex flex-col items-center px-4 pt-7 pb-2">
+            <div className="flex md:hidden items-center gap-2.5 mb-5">
+                <div className="w-10 h-10 rounded-xl bg-[#196ee6] flex items-center justify-center shadow-md">
+                    <Stethoscope size={20} color="white" />
                 </div>
-                <h2 className="text-xl font-bold text-slate-900 text-center">Welcome back</h2>
-                <p className="text-slate-500 text-sm text-center mt-1">Sign in to continue to Swarksha</p>
-                <div className="w-10 h-0.5 bg-[#196ee6]/30 rounded-full mt-4" />
+                <div>
+                    <p className="text-xl font-bold text-slate-900 leading-tight">Swarksha</p>
+                    <p className="text-[11px] text-slate-400 leading-tight">AI Clinical Documentation</p>
+                </div>
             </div>
-        );
-    },
-};
+            <h2 className="text-xl font-bold text-slate-900 text-center">Welcome back</h2>
+            <p className="text-slate-500 text-sm text-center mt-1">Sign in to continue to Swarksha</p>
+            <div className="w-10 h-0.5 bg-[#196ee6]/30 rounded-full mt-4" />
+        </div>
+    );
+}
+
+function SignInFooter({ onSignUp }: { onSignUp: () => void }) {
+    return (
+        <div className="text-center pb-4 pt-1">
+            <p className="text-sm text-slate-500">
+                Don't have an account?{' '}
+                <button
+                    type="button"
+                    onClick={onSignUp}
+                    className="text-[#196ee6] font-semibold hover:underline"
+                >
+                    Create account
+                </button>
+            </p>
+        </div>
+    );
+}
 
 export default function LoginPage() {
+    const [mode, setMode] = useState<Mode>('signin');
+
+    const components = {
+        Header() {
+            return <SignInHeader onSignUp={() => setMode('signup')} />;
+        },
+        Footer() {
+            return <SignInFooter onSignUp={() => setMode('signup')} />;
+        },
+    };
+
     return (
         <div className="min-h-screen flex flex-col md:flex-row">
 
@@ -91,9 +120,20 @@ export default function LoginPage() {
             {/* ── Right: Auth Form Panel ── */}
             <div className="flex-1 flex flex-col items-center justify-center bg-[#f8fafc] min-h-screen md:min-h-0 px-4 py-10 md:py-8">
                 <div className="w-full max-w-[430px]">
-                    <Authenticator components={components} />
+                    {mode === 'signin' ? (
+                        <Authenticator
+                            initialState="signIn"
+                            hideSignUp
+                            components={components}
+                        />
+                    ) : (
+                        <div className="bg-white rounded-3xl shadow-xl border border-slate-100 px-6 py-6 md:px-8 md:py-7 overflow-y-auto max-h-[90vh]">
+                            <SignUpForm onSwitchToSignIn={() => setMode('signin')} />
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
 }
+

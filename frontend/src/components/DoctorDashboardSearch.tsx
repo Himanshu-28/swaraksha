@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Users, Calendar, User, Menu, Search, CalendarPlus, FolderOpen, ChevronRight, Plus, Loader2, LogOut, Stethoscope } from 'lucide-react';
-import { fetchAuthSession, signOut } from 'aws-amplify/auth';
-import CreateNewPatientModal from './CreateNewPatientModal';
+import { Menu, Search, CalendarPlus, FolderOpen, ChevronRight, Loader2 } from 'lucide-react';
+import { fetchAuthSession } from 'aws-amplify/auth';
 import { API_ENDPOINT } from '../aws-exports';
+import { useDoctorProfile } from '../contexts/DoctorProfileContext';
 
 interface Patient {
     patientId: string;
@@ -15,7 +15,7 @@ interface Patient {
 
 export default function DoctorDashboardSearch() {
     const navigate = useNavigate();
-    const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false);
+    const { displayName, initials } = useDoctorProfile();
     const [patients, setPatients] = useState<any[]> ([]);
     const [isLoadingPatients, setIsLoadingPatients] = useState(true);
 
@@ -49,82 +49,7 @@ export default function DoctorDashboardSearch() {
     }, []);
 
     return (
-        <div className="bg-[#f8fafc] flex min-h-screen">
-
-            {/* ── Desktop Left Sidebar ── */}
-            <aside className="hidden md:flex flex-col w-64 shrink-0 bg-white border-r border-slate-100 sticky top-0 h-screen">
-                {/* Logo */}
-                <div className="flex items-center gap-3 px-6 py-5 border-b border-slate-100">
-                    <div className="w-9 h-9 rounded-xl bg-[#196ee6] flex items-center justify-center shadow-sm">
-                        <Stethoscope size={18} color="white" />
-                    </div>
-                    <span className="text-lg font-bold text-slate-900 tracking-tight">Swarksha</span>
-                </div>
-
-                {/* Nav Links */}
-                <nav className="flex flex-col gap-1 p-3 flex-1 mt-2">
-                    {[
-                        { icon: Home, label: 'Home', active: true },
-                        { icon: Users, label: 'Patients', active: false },
-                        { icon: Calendar, label: 'Schedule', active: false },
-                        { icon: User, label: 'Profile', active: false },
-                    ].map(({ icon: Icon, label, active }) => (
-                        <button
-                            key={label}
-                            className={`flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-sm transition-colors ${active
-                                ? 'bg-[#eff6ff] text-[#196ee6]'
-                                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                                }`}
-                        >
-                            <Icon size={18} />
-                            {label}
-                        </button>
-                    ))}
-                </nav>
-
-                {/* Online status + Sign out */}
-                <div className="p-4 border-t border-slate-100 space-y-2">
-                    <div className="flex items-center gap-2 px-4 py-2">
-                        <div className="bg-[#22c55e] rounded-full size-[8px]" />
-                        <p className="font-medium text-[#64748b] text-xs">Online</p>
-                    </div>
-                    <button
-                        onClick={() => signOut()}
-                        className="flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-sm text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors w-full"
-                    >
-                        <LogOut size={18} />
-                        Sign Out
-                    </button>
-                </div>
-            </aside>
-
-            {/* ── Main Content ── */}
-            <div className="flex flex-col flex-1 min-w-0">
-
-                {/* Mobile Bottom Navigation */}
-                <div className="md:hidden fixed bg-white border-[#f1f5f9] border-solid border-t bottom-0 content-stretch flex flex-col items-start left-0 pt-[9px] px-[24px] w-full z-[3]">
-                    <div className="absolute bg-[rgba(255,255,255,0)] bottom-0 left-0 shadow-[0px_-4px_6px_-1px_rgba(0,0,0,0.02)] top-[-1px] w-full" />
-                    <div className="relative shrink-0 w-full mb-4">
-                        <div className="flex items-end justify-between pb-[16px] relative w-full">
-                            <div className="flex flex-[1_0_0] flex-col gap-[4px] items-center cursor-pointer">
-                                <Home size={24} className="text-[#196ee6]" />
-                                <p className="font-['Inter'] font-medium text-[#196ee6] text-[10px] leading-[15px]">Home</p>
-                            </div>
-                            <div className="flex flex-[1_0_0] flex-col gap-[4px] items-center cursor-pointer">
-                                <Users size={24} className="text-[#94a3b8]" />
-                                <p className="font-['Inter'] font-medium text-[#94a3b8] text-[10px] leading-[15px]">Patients</p>
-                            </div>
-                            <div className="flex flex-[1_0_0] flex-col gap-[4px] items-center cursor-pointer">
-                                <Calendar size={24} className="text-[#94a3b8]" />
-                                <p className="font-['Inter'] font-medium text-[#94a3b8] text-[10px] leading-[15px]">Schedule</p>
-                            </div>
-                            <div className="flex flex-[1_0_0] flex-col gap-[4px] items-center cursor-pointer">
-                                <User size={24} className="text-[#94a3b8]" />
-                                <p className="font-['Inter'] font-medium text-[#94a3b8] text-[10px] leading-[15px]">Profile</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+        <div className="flex flex-col flex-1 min-w-0 min-h-screen bg-[#f8fafc]">
 
                 {/* Header */}
                 <div className="bg-white flex items-center justify-between pb-[8px] px-[24px] pt-[24px] shrink-0 w-full z-[2] md:border-b md:border-slate-100 md:px-8 md:py-4">
@@ -138,8 +63,8 @@ export default function DoctorDashboardSearch() {
                         <div className="bg-[#22c55e] rounded-full size-[8px] md:hidden" />
                         <p className="font-['Inter'] font-medium text-[#64748b] text-[12px] leading-[16px] md:hidden">Online</p>
                     </div>
-                    <div className="border border-[#e2e8f0] flex items-center justify-center overflow-clip p-px rounded-full size-[40px] cursor-pointer bg-slate-100">
-                        <img src="https://ui-avatars.com/api/?name=Dr.+Smith&background=random" alt="Doctor Profile" className="w-full h-full rounded-full object-cover" />
+                    <div className="border border-[#e2e8f0] flex items-center justify-center overflow-clip p-px rounded-full size-[40px] cursor-pointer bg-[#dbeafe]">
+                        <span className="font-bold text-[#196ee6] text-sm">{initials}</span>
                     </div>
                 </div>
 
@@ -150,7 +75,7 @@ export default function DoctorDashboardSearch() {
                     <div className="flex flex-col items-start pb-[40px] w-full">
                         <div className="flex flex-col gap-[8px] items-start w-full">
                             <h1 className="font-['Inter'] font-bold text-[#0f172a] text-[30px] tracking-[-0.75px]">
-                                Good Morning, Dr. Smith
+                                Good Morning, {displayName}
                             </h1>
                             <p className="font-['Inter'] font-normal text-[#64748b] text-[16px]">
                                 Ready to start your rounds?
@@ -172,20 +97,8 @@ export default function DoctorDashboardSearch() {
 
                     {/* Quick Actions Grid */}
                     <div className="flex flex-col gap-4 pb-[32px] w-full md:flex-row">
-                        {/* Main Action */}
-                        <div
-                            className="bg-[#196ee6] flex flex-col items-center justify-center py-[24px] rounded-[16px] shadow-md cursor-pointer transition-transform hover:scale-[1.02] md:flex-1"
-                            onClick={() => setIsNewPatientModalOpen(true)}
-                        >
-                            <div className="bg-white/20 flex items-center justify-center rounded-full size-[48px] mb-3">
-                                <Plus size={24} className="text-white" />
-                            </div>
-                            <h2 className="font-['Inter'] font-semibold text-[18px] text-white">New Patient</h2>
-                            <p className="font-['Inter'] text-[14px] text-blue-100 mt-1">Create a new record</p>
-                        </div>
-
                         {/* Secondary Actions Row */}
-                        <div className="flex gap-4 w-full md:w-auto md:flex-1">
+                        <div className="flex gap-4 w-full">
                             <div className="bg-white border border-[#f1f5f9] flex flex-1 flex-col items-center justify-center py-[16px] rounded-[16px] shadow-sm cursor-pointer transition-colors hover:bg-slate-50">
                                 <div className="bg-[#eff6ff] flex items-center justify-center rounded-full size-[40px] mb-2">
                                     <CalendarPlus size={20} className="text-[#196ee6]" />
@@ -205,7 +118,7 @@ export default function DoctorDashboardSearch() {
                     <div className="flex flex-col gap-[16px] w-full">
                         <div className="flex items-center justify-between w-full">
                             <h3 className="font-['Inter'] font-semibold text-[#0f172a] text-[18px]">Recent Patients</h3>
-                            <span className="font-['Inter'] font-medium text-[#196ee6] text-[14px] cursor-pointer hover:underline">View All</span>
+                            <span className="font-['Inter'] font-medium text-[#196ee6] text-[14px] cursor-pointer hover:underline" onClick={() => navigate('/patients')}>View All</span>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[12px] w-full">
@@ -215,7 +128,7 @@ export default function DoctorDashboardSearch() {
                                 </div>
                             ) : patients.length === 0 ? (
                                 <div className="text-center p-8 text-slate-500 font-['Inter'] text-sm bg-white rounded-[16px] col-span-full">
-                                    No patients found. Click "New Patient" to add one.
+                                    No patients yet — patients will appear here once they sign up on Swarksha.
                                 </div>
                             ) : (
                                 patients.map((patient, index) => {
@@ -254,18 +167,7 @@ export default function DoctorDashboardSearch() {
                     </div>
 
                 </div>
-            </div>
 
-            {/* Modal */}
-            {isNewPatientModalOpen && (
-                <CreateNewPatientModal
-                    onClose={() => setIsNewPatientModalOpen(false)}
-                    onSuccess={() => {
-                        setIsNewPatientModalOpen(false);
-                        loadPatients();
-                    }}
-                />
-            )}
         </div>
     );
 }

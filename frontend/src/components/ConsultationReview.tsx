@@ -3,19 +3,36 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import {
     ArrowLeft, Bold, Italic, List,
-    ListOrdered, Link2, Wand2, CheckCircle, Loader2, AlertCircle
+    ListOrdered, Link2, Wand2, CheckCircle, Loader2
 } from 'lucide-react';
 import { useConsultation } from '../contexts/ConsultationContext';
 import { SOAP_API_ENDPOINT } from '../aws-exports';
 
-/** Parse the AI soapNote markdown string into discrete SOAP sections. */
-function parseSoapNote(raw: string) {
+interface SoapFields {
+    subjective: string;
+    objective: string;
+    assessment: string;
+    plan: string;
+}
+
+/**
+ * Restore SOAP fields from the cached context string.
+ * New format: JSON-serialized SoapFields object.
+ * Legacy fallback: markdown string parsed with regex.
+ */
+function restoreSoapNote(cached: string): SoapFields {
+    try {
+        const parsed = JSON.parse(cached) as SoapFields;
+        if (typeof parsed.subjective === 'string') return parsed;
+    } catch { /* fall through to legacy regex parser */ }
+
+    // Legacy markdown format: "**1. Subjective (S)**\n..."
     const extract = (label: string) => {
         const regex = new RegExp(
             `\\*\\*\\d+\\.\\s*${label}\\s*\\([A-Z]\\)\\*\\*\\n([\\s\\S]*?)(?=\\*\\*\\d+\\.|$)`,
             'i'
         );
-        const match = raw.match(regex);
+        const match = cached.match(regex);
         return match ? match[1].trim() : '';
     };
     return {
@@ -23,6 +40,16 @@ function parseSoapNote(raw: string) {
         objective: extract('Objective'),
         assessment: extract('Assessment'),
         plan: extract('Plan'),
+    };
+}
+
+/** Build a basic SOAP template from the raw transcript when AI is unavailable. */
+function buildClientFallback(transcript: string): SoapFields {
+    return {
+        subjective: transcript.trim(),
+        objective: '',
+        assessment: '',
+        plan: '',
     };
 }
 
@@ -42,13 +69,12 @@ export default function ConsultationReview() {
 
     const [activeTab, setActiveTab] = useState<'doctor' | 'patient'>('doctor');
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [aiGenerated, setAiGenerated] = useState(false);
 
-    /** Calls the SOAP API and stores the result in context + local state. */
+    /** Calls the SOAP API; falls back to a client-side template on any failure. */
     const generateSoapNote = async () => {
         if (!joinedTranscript) return;
         setLoading(true);
-        setError(null);
         try {
             const session = await fetchAuthSession();
             const token = session.tokens?.idToken?.toString();
@@ -62,18 +88,29 @@ export default function ConsultationReview() {
             });
             if (!res.ok) throw new Error(`SOAP API error: ${res.status}`);
             const data = await res.json();
-            const rawNote: string = data.soapNote ?? '';
-            setSoapNote(rawNote);
-            const parsed = parseSoapNote(rawNote);
+            // API returns flat fields: { subjective, objective, assessment, plan }
+            const structured: SoapFields = {
+                subjective: data.subjective ?? '',
+                objective: data.objective ?? '',
+                assessment: data.assessment ?? '',
+                plan: data.plan ?? '',
+            };
+            // Only count as AI-generated if at least objective or assessment are populated
+            const isAi = !!(structured.objective || structured.assessment);
+            setSoapNote(JSON.stringify(structured));
+            setAiGenerated(isAi);
             setNote(prev => ({
-                subjective: parsed.subjective || prev.subjective,
-                objective: parsed.objective,
-                assessment: parsed.assessment,
-                plan: parsed.plan,
+                subjective: structured.subjective || prev.subjective,
+                objective: structured.objective,
+                assessment: structured.assessment,
+                plan: structured.plan,
             }));
         } catch (err) {
-            console.error('Failed to generate SOAP note', err);
-            setError('Failed to generate AI note. You can edit the fields manually.');
+            console.warn('SOAP API unavailable, using client fallback:', err);
+            const fallback = buildClientFallback(joinedTranscript);
+            setSoapNote(JSON.stringify(fallback));
+            setAiGenerated(false);
+            setNote(prev => ({ ...prev, ...fallback, subjective: fallback.subjective || prev.subjective }));
         } finally {
             setLoading(false);
         }
@@ -82,7 +119,9 @@ export default function ConsultationReview() {
     // On mount: use cached soapNote if available, otherwise call the API
     useEffect(() => {
         if (soapNote) {
-            const parsed = parseSoapNote(soapNote);
+            const parsed = restoreSoapNote(soapNote);
+            const isAi = !!(parsed.objective || parsed.assessment);
+            setAiGenerated(isAi);
             setNote(prev => ({
                 subjective: parsed.subjective || prev.subjective,
                 objective: parsed.objective,
@@ -154,17 +193,20 @@ export default function ConsultationReview() {
                 </div>
 
                 {/* Insights summary chips — shown above the editor when insights exist */}
-                {(insights.symptoms.length > 0 || insights.medications.length > 0) && (
-                    <div className="px-4 py-3 bg-blue-50/60 border-b border-blue-100 flex flex-wrap gap-2">
-                        {insights.symptoms.slice(0, 3).map(s => (
-                            <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 border border-orange-200 capitalize">{s}</span>
-                        ))}
-                        {insights.medications.slice(0, 2).map(m => (
-                            <span key={m} className="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 capitalize">{m}</span>
-                        ))}
-                        <span className="text-[11px] text-blue-400 ml-auto self-center">AI-extracted insights</span>
-                    </div>
-                )}
+                <div className="px-4 py-3 bg-blue-50/60 border-b border-blue-100 flex flex-wrap gap-2">
+                    {insights.symptoms.slice(0, 3).map(s => (
+                        <span key={s} className="text-[11px] px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 border border-orange-200 capitalize">{s}</span>
+                    ))}
+                    {insights.medications.slice(0, 2).map(m => (
+                        <span key={m} className="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 capitalize">{m}</span>
+                    ))}
+                    <span className="text-[11px] ml-auto self-center">
+                        {aiGenerated
+                            ? <span className="text-blue-400">✦ AI-generated note</span>
+                            : <span className="text-slate-400">Transcript loaded — edit fields below</span>
+                        }
+                    </span>
+                </div>
 
                 {/* Formatting Toolbar */}
                 <div className="flex justify-between items-center gap-2 px-4 py-2 border-b border-slate-100 bg-white sticky top-[64px] z-10 w-full">
@@ -195,14 +237,6 @@ export default function ConsultationReview() {
                         {loading ? 'Generating…' : 'AI Edit'}
                     </button>
                 </div>
-
-                {/* Error banner */}
-                {error && (
-                    <div className="mx-4 mt-4 flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-red-700 text-sm">
-                        <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                        <span>{error}</span>
-                    </div>
-                )}
 
                 {/* SOAP Note Content */}
                 <div className="flex-1 px-4 py-6 space-y-6">

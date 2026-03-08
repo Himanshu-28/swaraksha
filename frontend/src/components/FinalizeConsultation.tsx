@@ -19,6 +19,8 @@ interface Patient {
     patientName: string;
     age?: string;
     gender?: string;
+    email?: string;
+    cognitoUserId?: string;
 }
 
 export default function FinalizeConsultation() {
@@ -33,6 +35,40 @@ export default function FinalizeConsultation() {
     const [syncing, setSyncing] = useState(false);
     const [sending, setSending] = useState(false);
 
+/** Persist the SOAP note to localStorage so the patient can see it.
+ *  Falls back to email-keyed storage when cognitoUserId is not set in DB
+ *  (e.g. patients created before the cognito_user_id migration). */
+    const saveNoteForPatient = (loadedPatient: Patient) => {
+        if (!note) return;
+        // Prefer cognitoUserId; fall back to email so notes are always saved
+        const identifier = loadedPatient.cognitoUserId
+            ?? (loadedPatient.email ? `email_${loadedPatient.email}` : null);
+        if (!identifier) return;
+        const storageKey = `swaraksha_notes_${identifier}`;
+        try {
+            const existing: object[] = JSON.parse(localStorage.getItem(storageKey) || '[]');
+            // Avoid duplicate saves for the same consultation (match by patientId + date minute)
+            const nowMinute = new Date().toISOString().substring(0, 16);
+            const alreadySaved = existing.some((n: any) => n.savedAt?.startsWith(nowMinute));
+            if (!alreadySaved) {
+                const entry = {
+                    noteId: `${Date.now()}`,
+                    patientId: loadedPatient.patientId,
+                    patientName: loadedPatient.patientName,
+                    subjective: note.subjective ?? '',
+                    objective: note.objective ?? '',
+                    assessment: note.assessment ?? '',
+                    plan: note.plan ?? '',
+                    createdAt: new Date().toISOString(),
+                    savedAt: new Date().toISOString(),
+                };
+                localStorage.setItem(storageKey, JSON.stringify([entry, ...existing]));
+            }
+        } catch (e) {
+            console.error('Failed to save note for patient', e);
+        }
+    };
+
     useEffect(() => {
         const loadPatient = async () => {
             try {
@@ -43,17 +79,22 @@ export default function FinalizeConsultation() {
                 });
                 if (!res.ok) return;
                 const data = await res.json();
-                setPatient(data.patient);
+                const loaded: Patient = data.patient;
+                setPatient(loaded);
+                // Auto-save the SOAP note so the patient can view it immediately
+                saveNoteForPatient(loaded);
             } catch (e) {
                 console.error('Failed to load patient for finalize page', e);
             }
         };
         if (patientId) loadPatient();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [patientId]);
 
     const handleSyncEMR = async () => {
         setSyncing(true);
-        await new Promise(r => setTimeout(r, 1500));
+        // Note is already saved on mount; this button just provides visual confirmation
+        await new Promise(r => setTimeout(r, 800));
         setEmrSynced(true);
         setSyncing(false);
     };
