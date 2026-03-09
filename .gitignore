@@ -1,0 +1,12 @@
+.DS_Store
+.agent/
+.agents/
+.vscode/
+*.zip
+node_modules/
+services/**/node_modules/
+services/**/uploads/
+auth_token.txt
+out.json
+*.env
+*.env.*
