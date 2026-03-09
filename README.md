@@ -1,102 +1,182 @@
-# Swaraksha - AI Healthcare Documentation Assistant
+# Swaraksha — AI Healthcare Documentation Assistant
 
-> Multilingual voice-first digital assistant for small Indian clinics - automating clinical documentation with AWS AI services
+> Multilingual voice-first clinical assistant for small Indian clinics, automating documentation end-to-end with AWS AI services.
 
-**Swaraksha** (स्वरक्षा) - meaning "voice protection" in Sanskrit - safeguards patient care through intelligent voice documentation.
+**Swaraksha** (स्वरक्षा) combines "Swara" (स्वर — voice) and "Raksha" (रक्षा — protection).  
+It captures doctor-patient consultations in real time, generates structured SOAP notes via Amazon Bedrock, and surfaces everything through a React web frontend — all supporting Hindi, English, and code-switched conversation.
 
-This project provides a robust, microservices-based backend system for Clinic AI. It is designed as a monorepo consisting of serverless AWS Lambda microservices, shared logic, and frontends.
+Built for the **AI for Bharat Hackathon**.
 
-## Overview
+---
 
-An AI-powered system that transforms doctor-patient consultations into structured clinical documentation, generates prescriptions, and delivers patient-friendly summaries via WhatsApp—all in Hindi, English, or code-switched conversations.
+## What It Does
 
-## Key Microservices
-* **Auth Service**: User authentication and authorization.
-* **Patient Service**: Patient profile and details management.
-* **Appointment Service**: Scheduling and managing appointments.
-* **WhatsApp Service**: Integration with the WhatsApp API for notifications and interactions.
-* **Transcription Service**: AI transcription of medical audio/video using external models.
-* **SOAP Service**: Generating SOAP notes from transcriptions and consultations.
-* **Prescription Service**: Managing prescriptions given to patients.
-* **Notification Service**: Handling push/email/SMS notifications.
+| Step | What happens |
+|---|---|
+| 1. Record | Doctor opens the web app and starts a consultation session |
+| 2. Transcribe | Real-time audio is streamed to the ECS transcription service (Sarvam AI STT) over WebSocket |
+| 3. SOAP generation | Transcript is sent to a Lambda that calls **Amazon Bedrock (Claude 3)** and returns a structured SOAP note |
+| 4. Prescription | A separate Lambda extracts and stores prescription data |
+| 5. Review & Finalise | Doctor reviews the auto-generated note in the UI, edits if needed, and finalises |
+| 6. Patient access | Patient can log in with a separate Cognito pool and view their transcriptions and summaries |
+
+Reduces per-consultation documentation time from **5-10 minutes to under 90 seconds** for a typical clinic of 40-60 patients per day.
+
+---
+
+## Repository Structure
+
+```
+swaraksha/
+├── frontend/               # React + TypeScript frontend (Vite)
+│   ├── src/
+│   │   ├── components/     # Page-level UI components
+│   │   ├── contexts/       # ConsultationContext, UserContext, DoctorProfileContext
+│   │   ├── hooks/          # useRealtimeSTT — WebSocket STT hook
+│   │   ├── aws-exports.ts  # Cognito + API Gateway endpoint config
+│   │   └── amplifyConfig.ts
+│   └── amplify/            # AWS Amplify hosting config
+├── services/
+│   ├── auth-service/       # Lambda — pre-signup & post-confirmation Cognito triggers
+│   ├── soap-service/       # Lambda — SOAP note generation via Bedrock (Claude 3)
+│   ├── prescription-service/ # Lambda — prescription extraction
+│   ├── transcription-service/ # ECS Fargate — real-time STT WebSocket server
+│   ├── patient-service/    # Lambda — patient CRUD
+│   ├── appointment-service/
+│   ├── notification-service/
+│   └── whatsapp-service/
+├── infrastructure/         # AWS SAM template + CDK constructs
+├── shared/                 # Shared utilities / models
+├── docs/
+│   ├── api-contracts.md          # API endpoint reference
+│   └── aws-deployment-inventory.md  # Snapshot of deployed AWS resources
+├── design.md               # Architecture and design decisions
+└── requirements.md         # Product requirements
+```
+
+---
 
 ## Architecture
 
 ```mermaid
-graph TD;
-    Client-->API_Gateway;
-    API_Gateway-->AuthService;
-    API_Gateway-->PatientService;
-    API_Gateway-->AppointmentService;
-    API_Gateway-->WhatsAppService;
-    API_Gateway-->TranscriptionService;
-    API_Gateway-->SOAPService;
-    API_Gateway-->PrescriptionService;
-    API_Gateway-->NotificationService;
+flowchart TD
+    Browser["React Frontend\n(Amplify Hosting)"]
+    APIGW["API Gateway\n(prod stage)"]
+    Cognito["Amazon Cognito\nDoctor + Patient pools"]
+    STT["Transcription Service\nECS Fargate — Sarvam AI STT\nWebSocket :8080"]
+    ALB["Application Load Balancer"]
+    SOAP["Lambda\nswaraksha-soap-service\nBedrock Claude 3"]
+    Patient["Lambda\nSwaraksha-Get/Create-Patient\nSwaraksha-Search-Patients"]
+    Prescription["Lambda\nSwaraksha-Create-Prescription\nswaraksha-prescription-extraction"]
+    Notes["Lambda\nSwaraksha-Get-Notes\nSwaraksha-Get-Presigned-Url"]
+    AuthTriggers["Lambda\nswarksha-pre-signup\nswarksha-post-confirmation"]
+    DB[(Aurora Serverless v2\nPostgreSQL)]
+
+    Browser -->|"REST"| APIGW
+    Browser -->|"WebSocket"| ALB --> STT
+    Browser <-->|"Auth"| Cognito
+    Cognito --> AuthTriggers
+    APIGW --> SOAP
+    APIGW --> Patient
+    APIGW --> Prescription
+    APIGW --> Notes
+    SOAP --> DB
+    Patient --> DB
+    Prescription --> DB
+    Notes --> DB
 ```
 
-```text
-Consultation → Transcribe → Bedrock (SOAP) → Comprehend Medical → Translate → WhatsApp
-                    ↓              ↓                  ↓               ↓
-                  Aurora      Step Functions      S3 Storage      SNS/API
-```
+---
 
 ## Tech Stack
 
-- **Compute**: AWS Lambda (Node.js 18.x)
-- **Database**: Amazon Aurora Serverless v2 PostgreSQL, DynamoDB
-- **AI/ML**: Amazon Transcribe, Bedrock (Claude 3), Comprehend Medical, Translate
-- **Orchestration**: AWS Step Functions
-- **Messaging**: WhatsApp Business API via Amazon SNS
-- **Auth**: Amazon Cognito
-- **Infrastructure**: AWS SAM, AWS CDK (TypeScript)
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, AWS Amplify Hosting |
+| Auth | Amazon Cognito (Doctor pool + Patient pool) |
+| API | Amazon API Gateway REST (`https://i6a1l4o09d.execute-api.ap-south-1.amazonaws.com/prod`) |
+| Lambda runtime | Node.js 20.x (most functions), Node.js 18.x (soap-service, ai-auth), Python 3.12 (auth triggers) |
+| SOAP / AI | Amazon Bedrock — Claude 3 |
+| Transcription | ECS Fargate — Sarvam AI STT (real-time WebSocket, port 8080) |
+| Container registry | Amazon ECR (`swaraksha/transcription-service`) |
+| Database | Amazon Aurora Serverless v2 (PostgreSQL) |
+| Infrastructure as Code | AWS SAM (`infrastructure/template.yaml`) |
+| Hosting | AWS Amplify (app ID `dgcluntl7g0fl`, region `ap-south-1`) |
 
-## How to Run Locally
+---
 
-1. Navigate to the `infrastructure` folder.
-2. Ensure you have the [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) installed.
-3. Start the local API Gateway:
-   ```bash
-   sam local start-api
-   ```
-4. Each service's lambdas can be invoked locally via SAM.
+## Deployed AWS Resources (ap-south-1)
 
-## Deployment Steps
+See [`docs/aws-deployment-inventory.md`](docs/aws-deployment-inventory.md) for a full snapshot.
 
-1. Make sure you are authenticated with AWS CLI.
-2. Use AWS SAM to build and deploy:
-   ```bash
-   sam build
-   sam deploy --guided
-   ```
+**Lambda functions**
+- `swaraksha-soap-service` — SOAP note generation (Bedrock Claude 3)
+- `swaraksha-prescription-extraction` — prescription parsing
+- `Swaraksha-Create-Prescription`, `Swaraksha-Create-Patient`, `Swaraksha-Get-Patient`, `Swaraksha-Search-Patients`, `Swaraksha-Get-Notes`, `Swaraksha-Get-Presigned-Url`
+- `swarksha-pre-signup`, `swarksha-post-confirmation` — Cognito triggers
+- `swaraksha-ai-auth` — custom auth handler
 
-## Demo Mode
+**ECS**
+- Cluster `swaraksha-cluster` → Service `transcription-service` (Fargate, 1 task, port 8080)
 
-Includes synthetic patient data with realistic Hindi-English code-switching consultations for safe demonstration without real patient information.
+**Cognito**
+- `SwarakshaDoctorUserPool` (`ap-south-1_byWYZ74sf`) — doctor accounts
+- `swaraksha-user-pool` (`ap-south-1_ZOAs8JsXJ`) — patient accounts
 
-## Use Case
+---
 
-Designed for small Indian clinics processing 40-60 patients/day, reducing documentation time from 5-10 minutes to under 90 seconds per consultation.
+## Running the Frontend Locally
 
-## Cost
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-Estimated $106-192/month for typical clinic usage (60 consultations/day).
+The frontend talks to the live API Gateway and Cognito pools defined in `frontend/src/aws-exports.ts`.  
+No local backend setup is required for demo purposes.
 
-## Compliance
+---
 
-- Data encryption at rest (AES-256) and in transit (TLS 1.3)
-- Automatic audio deletion after 24 hours
-- Role-based access control (Doctor, Receptionist, Administrator)
-- Comprehensive audit logging
+## Running Backend Services Locally
+
+```bash
+cd infrastructure
+# Requires AWS SAM CLI — https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html
+sam build
+sam local start-api
+```
+
+Each Lambda under `services/` can also be invoked individually:
+
+```bash
+sam local invoke <FunctionName> --event events/sample.json
+```
+
+---
+
+## Deploying to AWS
+
+```bash
+cd infrastructure
+aws configure   # or use a named profile
+sam build
+sam deploy --guided
+```
+
+The transcription service has its own Docker-based deployment — see `services/transcription-service/Dockerfile` and push to ECR before deploying the ECS service.
+
+---
+
+## Compliance & Security
+
+- Data encrypted at rest (AES-256) and in transit (TLS 1.3)
+- Audio recordings deleted automatically after 24 hours
+- Role-based access — Doctor and Patient have separate Cognito pools and UI layouts
+- No secrets committed to the repository (credentials, `.env` files, and API tokens are git-ignored)
+
+---
 
 ## License
 
 MIT
-
-## About Swaraksha
-
-**Swaraksha** combines "Swara" (स्वर - voice) and "Raksha" (रक्षा - protection), embodying our mission to protect and preserve patient care through intelligent voice documentation. The system ensures accurate clinical records while respecting patient privacy and supporting India's linguistic diversity.
-
-## Hackathon Submission
-
-Built for **AI for Bharat Hackathon** - demonstrating AI-powered healthcare automation for resource-constrained clinics in India.
